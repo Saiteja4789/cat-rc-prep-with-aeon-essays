@@ -24,7 +24,7 @@ function cleanMorssHtml(html: string): string {
 
 // Use a full-text RSS service (morss.it) to get the complete essay content directly.
 const FULL_TEXT_RSS_URL = 'https://morss.it/https://aeon.co/feed.rss';
-const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FULL_TEXT_RSS_URL)}`;
+const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FULL_TEXT_RSS_URL)}&count=50`;
 
 const CACHE_KEY = 'essaysCache';
 
