@@ -61,15 +61,24 @@ export const fetchEssays = async (forceRefresh = false): Promise<Essay[]> => {
 /**
  * Fetches the full HTML content of a single essay using our serverless function.
  */
-export async function fetchFullEssayContent(url: string): Promise<string> {
-  const response = await fetch(`/api/fetchFullEssay?url=${encodeURIComponent(url)}`);
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.error || 'Failed to fetch full essay content.');
+export const fetchFullEssayContent = async (url: string): Promise<string> => {
+  try {
+    // **FIX:** Using the new, more reliable Mercury Parser endpoint.
+    const response = await fetch(`/api/fetchEssayContent?url=${encodeURIComponent(url)}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('EssayService fetch error:', errorData.error);
+      throw new Error(errorData.error || 'Failed to fetch full essay content');
+    }
+    const data = await response.json();
+    if (!data.content || !data.content.trim()) {
+      console.error('EssayService: Mercury Parser returned empty content for', url);
+      throw new Error('Essay content is missing or empty.');
+    }
+    console.log('EssayService: Got essay content (first 200 chars):', data.content.slice(0, 200));
+    return data.content;
+  } catch (error) {
+    console.error('Error fetching full essay content:', error);
+    throw error;
   }
-
-  const data = await response.json();
-  return data.content;
-}
-
+};
