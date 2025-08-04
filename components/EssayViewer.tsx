@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { VocabularyWord } from '../types';
 import Tooltip from './Tooltip';
-import parse, { domToReact, HTMLReactParserOptions, Element, DOMNode, Text } from 'html-react-parser';
+import parse, { HTMLReactParserOptions, DOMNode, Text } from 'html-react-parser';
 
 interface EssayViewerProps {
   essayText: string;
@@ -13,16 +13,19 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
   const processedContent = useMemo(() => {
     if (!essayText) return null;
 
-    const vocabMap = new Map<string, VocabularyWord>(vocabulary.map(v => [v.word.toLowerCase(), v]));
-    if (vocabMap.size === 0) {
+    // If there's no vocabulary to highlight, just parse the HTML directly for performance.
+    if (vocabulary.length === 0) {
       return parse(essayText);
     }
 
+    const vocabMap = new Map<string, VocabularyWord>(vocabulary.map(v => [v.word.toLowerCase(), v]));
     const wordsToHighlight = new Set(vocabulary.map(v => v.word));
-    const regex = new RegExp(`\\b(${Array.from(wordsToHighlight).join('|')})\\b`, 'gi');
+    const regex = new RegExp(`\b(${Array.from(wordsToHighlight).join('|')})\b`, 'gi');
 
     const options: HTMLReactParserOptions = {
       replace: (domNode: DOMNode) => {
+        // The key is to only process Text nodes for replacement.
+        // The parser will handle traversing through all other element nodes for us.
         if (domNode instanceof Text) {
           const text = domNode.data;
           if (!text.trim()) {
@@ -57,26 +60,19 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
             </>
           );
         }
-        // Let the parser handle all other nodes (Elements, etc.) by default.
+        // By returning undefined for non-Text nodes, we let the parser handle them with its default behavior,
+        // which includes processing their children. This is the correct way to recurse.
       },
     };
 
     return parse(essayText, options);
   }, [essayText, vocabulary]);
 
-  if (isLoading) {
+  // Show a loading skeleton only if there is no text content to display yet.
+  if (isLoading && !essayText) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="space-y-3">
-          <div className="h-4 bg-gray-700 rounded w-3/4"></div>
-          <div className="h-4 bg-gray-700 rounded"></div>
-          <div className="h-4 bg-gray-700 rounded w-5/6"></div>
-        </div>
-        <div className="space-y-3">
-          <div className="h-4 bg-gray-700 rounded"></div>
-          <div className="h-4 bg-gray-700 rounded w-1/2"></div>
-        </div>
-         <div className="space-y-3">
           <div className="h-4 bg-gray-700 rounded w-3/4"></div>
           <div className="h-4 bg-gray-700 rounded"></div>
           <div className="h-4 bg-gray-700 rounded w-5/6"></div>
@@ -85,7 +81,12 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
     );
   }
 
-  return <div className="prose prose-invert max-w-none">{processedContent}</div>;
+  // Render the processed content. A subtle pulse animation indicates when new content/analysis is loading.
+  return (
+    <div className={`prose prose-invert max-w-none ${isLoading ? 'animate-pulse' : ''}`}>
+      {processedContent}
+    </div>
+  );
 };
 
 export default EssayViewer;
