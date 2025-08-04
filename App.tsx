@@ -96,6 +96,7 @@ const App: React.FC = () => {
     );
   }
 
+  // Show landing page if no essay is selected
   if (!currentEssay) {
     return (
       <LandingPage
@@ -104,6 +105,18 @@ const App: React.FC = () => {
         onRefreshEssays={handleRefreshEssays}
         loadingEssays={isLoadingEssays}
       />
+    );
+  }
+
+  // Show a full-page loading indicator while the full content and analysis are being fetched.
+  if (isLoadingAnalysis) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
+        <p className="text-2xl mb-4">Loading {currentEssay.title}...</p>
+        <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div className="w-full h-full bg-indigo-600 animate-pulse"></div>
+        </div>
+      </div>
     );
   }
 
@@ -123,14 +136,12 @@ const App: React.FC = () => {
           </button>
           <h1 className="text-4xl font-bold text-white mb-2 font-serif">{currentEssay.title}</h1>
           <p className="text-lg text-gray-400 mb-8">by {currentEssay.author}</p>
-          {/* CRITICAL FIX: Ensure vocabulary is an array before rendering */}
-          {Array.isArray(vocabulary) && (
-            <EssayViewer
-              essayText={currentEssay.content}
-              vocabulary={vocabulary}
-              isLoading={isLoadingAnalysis}
-            />
-          )}
+          {/* Show loading state for the essay body, or the content when ready */}
+          <EssayViewer
+            essayText={currentEssay.content}
+            vocabulary={vocabulary}
+            isLoading={isLoadingAnalysis}
+          />
         </div>
         {/* The Questionnaire and future analysis tools would go here */}
         {questions.length > 0 && (
