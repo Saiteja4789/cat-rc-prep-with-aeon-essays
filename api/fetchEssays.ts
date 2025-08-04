@@ -27,10 +27,10 @@ export default async function handler(
       title: item.title,
       url: item.link,
       author: item.creator || 'N/A',
-      // The summary is in 'content:encoded'
       content: item['content:encoded'],
       published: new Date(item.pubDate).toISOString(),
-      categories: item.categories || [],
+      // Ensure categories are always an array of strings for consistent filtering
+      categories: Array.isArray(item.categories) ? item.categories.map(c => (typeof c === 'string' ? c : '')) : [],
     }));
 
     // Add CORS headers to allow requests from any origin
