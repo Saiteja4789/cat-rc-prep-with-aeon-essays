@@ -1,8 +1,29 @@
 import { Essay } from '../types';
 
-// In a real application, this would fetch from a backend that scrapes Aeon.
-// For this self-contained app, we'll use an expanded list of pre-loaded content.
-const essaysData: Essay[] = [
+// Fetch and parse Aeon essays from their RSS feed using a public RSS-to-JSON proxy
+const RSS_TO_JSON = 'https://api.rss2json.com/v1/api.json?rss_url=https://aeon.co/feed.rss';
+
+export async function fetchEssays(): Promise<Essay[]> {
+  const res = await fetch(RSS_TO_JSON);
+  if (!res.ok) throw new Error('Failed to fetch essays');
+  const data = await res.json();
+  // data.items is an array of articles
+  return data.items.map((item: any, idx: number) => ({
+    id: item.guid || String(idx + 1),
+    title: item.title,
+    author: item.author || 'Aeon',
+    url: item.link,
+    genre: item.categories && item.categories.length > 0 ? item.categories[0] : 'Essay',
+    duration: 5, // RSS does not provide reading time; set a default or estimate from content length
+    content: item.description.replace(/<[^>]+>/g, ''), // strip HTML tags
+  }));
+}
+
+export async function fetchEssayById(id: string): Promise<Essay | null> {
+  const essays = await fetchEssays();
+  return essays.find(e => e.id === id) || null;
+}
+
   {
     id: '1',
     title: 'The meaning of synchronicity',
@@ -64,23 +85,3 @@ We now live in the Anthropocene, an epoch defined by human impact on the planet.
 Consider the placebo effect. A sugar pill can alleviate pain simply because the patient believes it is a powerful drug. The ritual of the consultation, the white coat of the doctor, the formal prescription – all these contribute to the expectation of healing. Rituals work in a similar way. They are a kind of social placebo. By performing a series of prescribed actions, we signal to ourselves and to others that we are taking a situation seriously. This can be incredibly powerful in moments of high anxiety or uncertainty, such as before an exam, a competition or a surgical operation. The repetitive, predictable nature of ritual can have a calming effect on the nervous system, reducing stress and improving performance. Far from being irrational, rituals are a savvy psychological tool for navigating the complexities of human existence.`,
   },
 ];
-
-// Fisher-Yates shuffle algorithm
-const shuffleArray = <T>(array: T[]): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
-
-
-export const getEssays = (): Essay[] => {
-  // Return a shuffled list to simulate a dynamic feed
-  return shuffleArray(essaysData);
-};
-
-export const getEssayById = (id: string): Essay | null => {
-  return essaysData.find(essay => essay.id === id) || null;
-};
