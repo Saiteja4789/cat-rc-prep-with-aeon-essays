@@ -9,25 +9,26 @@ interface EssayViewerProps {
 }
 
 const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoading }) => {
+  // If essayText looks like HTML, render as HTML
+  const isHtml = /<\/?[a-z][\s\S]*>/i.test(essayText);
+
   const processedText = useMemo(() => {
+    if (isHtml && vocabulary.length === 0) {
+      // Render HTML directly
+      return <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: essayText }} />;
+    }
     if (vocabulary.length === 0) {
       return essayText.split('\n').map((paragraph, index) => (
         <p key={index} className="mb-4 font-serif text-lg leading-relaxed text-gray-300">{paragraph}</p>
       ));
     }
-
     const vocabMap = new Map(vocabulary.map(v => [v.word.toLowerCase(), v]));
     const wordsToHighlight = new Set(vocabulary.map(v => v.word));
-
     const regex = new RegExp(`\\b(${Array.from(wordsToHighlight).join('|')})\\b`, 'gi');
-
     const paragraphs = essayText.split('\n');
-
     return paragraphs.map((paragraph, pIndex) => {
       if (!paragraph.trim()) return null;
-      
       const parts = paragraph.split(regex);
-
       return (
         <p key={pIndex} className="mb-4 font-serif text-lg leading-relaxed text-gray-300">
           {parts.map((part, index) => {
@@ -51,8 +52,7 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
         </p>
       );
     });
-
-  }, [essayText, vocabulary]);
+  }, [essayText, vocabulary, isHtml]);
 
   if (isLoading) {
     return (
