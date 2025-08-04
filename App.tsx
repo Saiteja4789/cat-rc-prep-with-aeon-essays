@@ -23,17 +23,18 @@ const App: React.FC = () => {
   const [loadingEssays, setLoadingEssays] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const handleRefreshEssays = useCallback(() => {
+  const handleRefreshEssays = useCallback((force = false) => {
     setLoadingEssays(true);
     setError(null);
-    fetchEssays()
+    fetchEssays(force)
       .then(setEssays)
       .catch(() => setError('Failed to load essays from Aeon.'))
       .finally(() => setLoadingEssays(false));
   }, []);
 
   useEffect(() => {
-    handleRefreshEssays();
+    // Initial load from cache if available
+    handleRefreshEssays(false);
   }, [handleRefreshEssays]);
 
   const handleSelectEssay = useCallback(async (id: string) => {
