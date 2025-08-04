@@ -1,19 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fetch from 'node-fetch';
 
-// Extract the main Aeon essay content from HTML
-function extractMainContent(html: string): string {
-  // Most Aeon essays are inside <article> tags
+// Robust HTML extraction for main Aeon essay content
+function extractMainContent(html: string): string | null {
+  // Extract <article> content only
   const match = html.match(/<article[\s\S]*?<\/article>/i);
-  if (match) {
-    // Remove scripts/styles and return clean HTML
-    return match[0]
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '');
-  }
-  // Fallback: return everything inside <body>
-  const bodyMatch = html.match(/<body[\s\S]*?<\/body>/i);
-  return bodyMatch ? bodyMatch[0] : '';
+  if (!match) return null;
+  let articleHtml = match[0];
+  // Remove unwanted tags
+  articleHtml = articleHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<link[\s\S]*?>/gi, '')
+    .replace(/<!--.*?-->/gs, '')
+    .replace(/<aside[\s\S]*?<\/aside>/gi, '');
+  return articleHtml;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -28,6 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const html = await response.text();
     const mainContent = extractMainContent(html);
+    if (!mainContent) {
+      return res.status(404).json({ error: 'Could not extract essay content' });
+    }
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
     return res.status(200).json({ content: mainContent });
   } catch (err) {
