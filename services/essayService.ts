@@ -1,33 +1,15 @@
 import { Essay } from '../types';
 
+// Use Aeon's official, reliable RSS feed.
+const RSS_FEED_URL = 'https://aeon.co/feed.rss';
+const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(RSS_FEED_URL)}&count=50`;
+
+const CACHE_KEY = 'essayListCache';
+
 /**
- * Cleans the HTML content from the morss.it service by removing its wrapper div.
- * @param html The raw HTML string from the RSS feed.
- * @returns Cleaned HTML string containing only the article content.
+ * Fetches the list of essays (title, summary, etc.) from the RSS feed.
+ * This does NOT fetch the full content.
  */
-function cleanMorssHtml(html: string): string {
-  // Create a temporary div to parse the HTML string
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = html;
-
-  // Find the first child element, which is the wrapper from morss.it
-  const wrapper = tempDiv.firstElementChild;
-
-  // Return the inner HTML of the wrapper, which is the actual content
-  if (wrapper) {
-    return wrapper.innerHTML;
-  }
-
-  // Fallback to the original HTML if parsing fails
-  return html;
-}
-
-// Use a full-text RSS service (morss.it) to get the complete essay content directly.
-const FULL_TEXT_RSS_URL = 'https://morss.it/https://aeon.co/feed.rss';
-const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FULL_TEXT_RSS_URL)}&count=50`;
-
-const CACHE_KEY = 'essaysCache';
-
 export async function fetchEssays(forceRefresh = false): Promise<Essay[]> {
   if (!forceRefresh) {
     const cachedData = sessionStorage.getItem(CACHE_KEY);
@@ -37,12 +19,17 @@ export async function fetchEssays(forceRefresh = false): Promise<Essay[]> {
   }
 
   const res = await fetch(API_URL);
-  if (!res.ok) throw new Error('Failed to fetch essays');
+  if (!res.ok) {
+    throw new Error('Failed to fetch the list of essays from Aeon.');
+  }
   const data = await res.json();
+
+  if (data.status !== 'ok') {
+    throw new Error('RSS to JSON API returned an error.');
+  }
 
   const essays = data.items
     .filter((item: any) => {
-      // More robust video filtering
       const hasVideoCategory = item.categories?.some((cat: string) => cat.toLowerCase().includes('video'));
       const hasVideoUrl = item.link?.includes('/videos/');
       return !hasVideoCategory && !hasVideoUrl && item.title && item.content;
@@ -52,17 +39,30 @@ export async function fetchEssays(forceRefresh = false): Promise<Essay[]> {
       title: item.title,
       author: item.author || 'Aeon',
       url: item.link,
-      genre: item.categories && item.categories.length > 0 ? item.categories[0] : 'Essay',
-      duration: 5,
-      content: cleanMorssHtml(item.content || item.description),
+      genre: item.categories?.[0] || 'Essay',
+      duration: 5, // Placeholder
+      // Initially, content is the summary from the feed.
+      content: item.content || item.description,
     }));
 
   sessionStorage.setItem(CACHE_KEY, JSON.stringify(essays));
   return essays;
 }
 
-export async function fetchEssayById(id: string): Promise<Essay | null> {
-  // The full content is now included in the initial fetch, so we just find the essay.
-  const essays = await fetchEssays();
-  return essays.find(e => e.id === id) || null;
+/**
+ * Fetches the full HTML content of a single essay using our serverless function.
+ * @param url The URL of the essay to fetch.
+ * @returns The full HTML content of the essay.
+ */
+export async function fetchFullEssayContent(url: string): Promise<string> {
+  const response = await fetch(`/api/fetchFullEssay?url=${encodeURIComponent(url)}`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null); // Gracefully handle non-json responses
+    throw new Error(errorData?.error || 'Failed to fetch full essay content.');
+  }
+
+  const data = await response.json();
+  return data.content;
 }
+
