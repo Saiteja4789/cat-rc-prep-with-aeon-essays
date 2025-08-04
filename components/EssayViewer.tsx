@@ -57,7 +57,7 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
             </>
           );
         }
-        return domToReact([domNode], options);
+        // Let the parser handle all other nodes (Elements, etc.) by default.
       },
     };
 
