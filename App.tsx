@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Essay, VocabularyWord, Question } from './types';
-import { getEssays, getEssayById } from './services/essayService';
+import { fetchEssays, fetchEssayById } from './services/essayService';
 import { analyzeVocabulary, generateQuestions } from './services/geminiService';
 import Sidebar from './components/Sidebar';
 import EssayViewer from './components/EssayViewer';
@@ -20,13 +20,16 @@ const App: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoadingEssay, setIsLoadingEssay] = useState(false);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [loadingEssays, setLoadingEssays] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!essays.length) {
-      setEssays(getEssays());
-    }
-  }, [essays.length]);
+    setLoadingEssays(true);
+    fetchEssays()
+      .then(setEssays)
+      .catch(() => setError('Failed to load essays from Aeon.'))
+      .finally(() => setLoadingEssays(false));
+  }, []);
 
   const handleSelectEssay = useCallback(async (id: string) => {
     setIsLoadingEssay(true);
@@ -34,21 +37,19 @@ const App: React.FC = () => {
     setVocabulary([]);
     setQuestions([]);
 
-    const selectedEssay = getEssayById(id);
-    setCurrentEssay(selectedEssay);
-
-    if (!selectedEssay) {
-      setError("Essay not found.");
-      setIsLoadingEssay(false);
-      return;
-    }
-
     try {
+      const selectedEssay = await fetchEssayById(id);
+      setCurrentEssay(selectedEssay);
+      if (!selectedEssay) {
+        setError("Essay not found.");
+        setIsLoadingEssay(false);
+        return;
+      }
       const vocabData = await analyzeVocabulary(selectedEssay.content);
       setVocabulary(vocabData);
     } catch (err) {
       console.error(err);
-      setError('Failed to analyze vocabulary. Please check your API key and try again.');
+      setError('Failed to load or analyze essay.');
     } finally {
       setIsLoadingEssay(false);
     }
@@ -79,6 +80,12 @@ const App: React.FC = () => {
     setError(null);
   };
 
+  if (loadingEssays) {
+    return <div className="flex items-center justify-center min-h-screen text-xl text-gray-300">Loading latest essays from Aeon...</div>;
+  }
+  if (error) {
+    return <div className="flex items-center justify-center min-h-screen text-xl text-red-400">{error}</div>;
+  }
   if (!currentEssay) {
     return <LandingPage essays={essays} onSelectEssay={handleSelectEssay} />;
   }
