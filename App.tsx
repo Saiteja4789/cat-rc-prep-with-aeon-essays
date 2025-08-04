@@ -1,155 +1,136 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Essay, VocabularyWord, Question } from './types';
-import { fetchEssays, fetchEssayById } from './services/essayService';
+import { fetchEssays, fetchFullEssayContent } from './services/essayService';
 import { analyzeVocabulary, generateQuestions } from './services/geminiService';
 import Sidebar from './components/Sidebar';
 import EssayViewer from './components/EssayViewer';
 import Questionnaire from './components/Questionnaire';
-import Loader from './components/Loader';
-import { HelpCircleIcon } from './components/icons/HelpCircleIcon';
 import LandingPage from './components/LandingPage';
 
 const App: React.FC = () => {
-  // Debug: Print Gemini API key to console
-  // (It should be undefined or a string; never expose secrets in production, but this is for debugging only)
-  // eslint-disable-next-line no-console
-  console.log('VITE_GEMINI_API_KEY:', import.meta.env.VITE_GEMINI_API_KEY);
   const [essays, setEssays] = useState<Essay[]>([]);
   const [currentEssay, setCurrentEssay] = useState<Essay | null>(null);
   const [vocabulary, setVocabulary] = useState<VocabularyWord[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [isLoadingEssay, setIsLoadingEssay] = useState(false);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
-  const [loadingEssays, setLoadingEssays] = useState(true);
+  const [isLoadingEssays, setIsLoadingEssays] = useState(true);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleRefreshEssays = useCallback((force = false) => {
-    setLoadingEssays(true);
+  const handleRefreshEssays = useCallback((force: boolean) => {
+    setIsLoadingEssays(true);
     setError(null);
     fetchEssays(force)
       .then(setEssays)
       .catch(() => setError('Failed to load essays from Aeon.'))
-      .finally(() => setLoadingEssays(false));
+      .finally(() => setIsLoadingEssays(false));
   }, []);
 
   useEffect(() => {
-    // Initial load from cache if available
+    // Initial load, don't force refresh
     handleRefreshEssays(false);
   }, [handleRefreshEssays]);
 
-  const handleSelectEssay = useCallback(async (id: string) => {
-    setIsLoadingEssay(true);
-    setError(null);
-    setVocabulary([]);
-    setQuestions([]);
+  const handleSelectEssay = useCallback((id: string) => {
+    const essay = essays.find(e => e.id === id);
+    if (essay) {
+      // Set the essay immediately with summary content for a fast UI response
+      setCurrentEssay(essay);
+      setVocabulary([]);
+      setQuestions([]);
+      setIsLoadingAnalysis(true);
 
-    try {
-      const selectedEssay = await fetchEssayById(id);
-      setCurrentEssay(selectedEssay);
-      if (!selectedEssay) {
-        setError("Essay not found.");
-        setIsLoadingEssay(false);
-        return;
-      }
-      const vocabData = await analyzeVocabulary(selectedEssay.content);
-      setVocabulary(vocabData);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load or analyze essay.');
-    } finally {
-      setIsLoadingEssay(false);
+      // Then, fetch the full content in the background
+      fetchFullEssayContent(essay.url)
+        .then(fullContent => {
+          const completeEssay = { ...essay, content: fullContent };
+          setCurrentEssay(completeEssay);
+          
+          // Now analyze the full content
+          return analyzeVocabulary(fullContent);
+        })
+        .then(vocabData => {
+          setVocabulary(vocabData);
+        })
+        .catch(err => {
+          console.error('Failed to fetch or analyze essay:', err);
+          setError('Could not load or analyze the full essay. Please try again.');
+        })
+        .finally(() => {
+          setIsLoadingAnalysis(false);
+        });
     }
-  }, []);
+  }, [essays]);
 
   const handleGenerateQuestions = useCallback(async () => {
-    if (!currentEssay) return;
+    if (!currentEssay?.content) return;
 
-    setIsLoadingQuestions(true);
-    setError(null);
-    setQuestions([]);
-
+    setIsLoadingAnalysis(true);
     try {
-      const questionData = await generateQuestions(currentEssay.content);
-      setQuestions(questionData);
+      const generatedQuestions = await generateQuestions(currentEssay.content);
+      setQuestions(generatedQuestions);
     } catch (err) {
-      console.error(err);
-      setError('Failed to generate questions. Please check your API key and try again.');
+      setError('Failed to generate questions.');
     } finally {
-      setIsLoadingQuestions(false);
+      setIsLoadingAnalysis(false);
     }
   }, [currentEssay]);
 
-  const handleGoHome = () => {
+  const handleBackToList = () => {
     setCurrentEssay(null);
     setVocabulary([]);
     setQuestions([]);
     setError(null);
   };
 
+  if (error && essays.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
+        <p className="text-2xl mb-4 text-red-500">{error}</p>
+        <button 
+          onClick={() => handleRefreshEssays(true)} 
+          className="px-4 py-2 rounded bg-indigo-600 text-white font-semibold shadow hover:bg-indigo-700 transition"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   if (!currentEssay) {
-    if (loadingEssays && essays.length === 0) {
-      return <div className="flex items-center justify-center min-h-screen text-xl text-gray-300">Loading latest essays from Aeon...</div>;
-    }
-    if (error && essays.length === 0) {
-      return <div className="flex items-center justify-center min-h-screen text-xl text-red-400">{error}</div>;
-    }
     return (
       <LandingPage
         essays={essays}
         onSelectEssay={handleSelectEssay}
         onRefreshEssays={handleRefreshEssays}
-        loadingEssays={loadingEssays}
+        loadingEssays={isLoadingEssays}
       />
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-800 font-sans">
-      <Sidebar 
-        essays={essays} 
-        onSelectEssay={handleSelectEssay} 
-        currentEssayId={currentEssay?.id}
-        onGoHome={handleGoHome}
+    <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
+      <Sidebar
+        essayTitle={currentEssay.title}
+        vocabulary={vocabulary}
+        onGenerateQuestions={handleGenerateQuestions}
+        onBack={handleBackToList}
+        isLoading={isLoadingAnalysis}
       />
-      
-      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          <header className="mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">{currentEssay.title}</h1>
-            <div className="flex flex-wrap items-center text-gray-400 gap-x-2 text-md">
-              <span>by {currentEssay.author}</span>
-              <span className="text-gray-600">&bull;</span>
-              <span className="font-medium text-teal-400">{currentEssay.genre}</span>
-              <span className="text-gray-600">&bull;</span>
-              <span>{currentEssay.duration} min read</span>
-            </div>
-          </header>
-
-          <div className="bg-gray-900 p-6 sm:p-8 rounded-xl shadow-lg mb-8">
-            <EssayViewer essayText={currentEssay.content} vocabulary={vocabulary} isLoading={isLoadingEssay} />
-          </div>
-
-          {error && (
-            <div className="bg-red-900/50 border-l-4 border-red-500 text-red-300 p-4 mb-6 rounded-md" role="alert">
-              <p className="font-bold">An Error Occurred</p>
-              <p>{error}</p>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-4 mb-8">
-            <button
-              onClick={handleGenerateQuestions}
-              disabled={isLoadingQuestions || isLoadingEssay}
-              className="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoadingQuestions ? <Loader /> : <HelpCircleIcon className="w-5 h-5 mr-2" />}
-              Generate RC Questions
-            </button>
-          </div>
-          
-          {questions.length > 0 && <Questionnaire questions={questions} />}
-
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-8 lg:p-12">
+          <h1 className="text-4xl font-bold text-white mb-2 font-serif">{currentEssay.title}</h1>
+          <p className="text-lg text-gray-400 mb-8">by {currentEssay.author}</p>
+          <EssayViewer
+            essayText={currentEssay.content}
+            vocabulary={vocabulary}
+            isLoading={isLoadingAnalysis}
+          />
         </div>
+        {questions.length > 0 && (
+          <div className="w-full lg:w-1/3 xl:w-1/4 p-6 bg-gray-800 border-l border-gray-700 overflow-y-auto">
+            <Questionnaire questions={questions} />
+          </div>
+        )}
       </main>
     </div>
   );
