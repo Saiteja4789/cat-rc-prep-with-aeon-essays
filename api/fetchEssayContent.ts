@@ -1,22 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fetch from 'node-fetch';
+import cheerio from 'cheerio';
 
-// Robust HTML extraction for main Aeon essay content
+// Use Cheerio to robustly extract the main Aeon essay content
 function extractMainContent(html: string): string | null {
-  // Extract <article> content only
-  const match = html.match(/<article[\s\S]*?<\/article>/i);
-  if (!match) return null;
-  let articleHtml = match[0];
-  // Remove unwanted tags
-  articleHtml = articleHtml
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<link[\s\S]*?>/gi, '')
-    .replace(/<!--.*?-->/gs, '')
-    .replace(/<aside[\s\S]*?<\/aside>/gi, '');
-  return articleHtml;
+  const $ = cheerio.load(html);
+  const article = $('article');
+  if (!article.length) return null;
+  // Remove unwanted tags from within the article
+  article.find('script, style, noscript, iframe, link, aside').remove();
+  // Remove comments
+  article.contents().each(function () {
+    if (this.type === 'comment') $(this).remove();
+  });
+  return article.html();
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
