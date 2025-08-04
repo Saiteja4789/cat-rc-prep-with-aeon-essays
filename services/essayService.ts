@@ -1,10 +1,11 @@
 import { Essay } from '../types';
 
-// Fetch and parse Aeon essays from their RSS feed using a public RSS-to-JSON proxy
-const RSS_TO_JSON = 'https://api.rss2json.com/v1/api.json?rss_url=https://aeon.co/feed.rss';
+// Use a full-text RSS service (morss.it) to get the complete essay content directly.
+const FULL_TEXT_RSS_URL = 'https://morss.it/https://aeon.co/feed.rss';
+const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FULL_TEXT_RSS_URL)}`;
 
 export async function fetchEssays(): Promise<Essay[]> {
-  const res = await fetch(RSS_TO_JSON);
+  const res = await fetch(API_URL);
   if (!res.ok) throw new Error('Failed to fetch essays');
   const data = await res.json();
   // data.items is an array of articles
@@ -26,23 +27,7 @@ export async function fetchEssays(): Promise<Essay[]> {
 }
 
 export async function fetchEssayById(id: string): Promise<Essay | null> {
+  // The full content is now included in the initial fetch, so we just find the essay.
   const essays = await fetchEssays();
-  const essay = essays.find(e => e.id === id);
-  if (!essay) return null;
-
-  try {
-    // Call the serverless function to get full content
-    const apiUrl = `/api/fetchEssayContent?url=${encodeURIComponent(essay.url)}`;
-    const res = await fetch(apiUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.content) {
-        return { ...essay, content: data.content };
-      }
-    }
-  } catch (err) {
-    // Ignore and use fallback
-  }
-  // Fallback to RSS description if full content fetch fails
-  return essay;
+  return essays.find(e => e.id === id) || null;
 }
