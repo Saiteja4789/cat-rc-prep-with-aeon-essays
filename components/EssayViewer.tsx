@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { VocabularyWord } from '../types';
 import Tooltip from './Tooltip';
+import parse, { domToReact, HTMLReactParserOptions, Element, DOMNode, Text } from 'html-react-parser';
 
 interface EssayViewerProps {
   essayText: string;
@@ -9,53 +10,59 @@ interface EssayViewerProps {
 }
 
 const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoading }) => {
-  // If essayText looks like HTML, render as HTML
-  const isHtml = /<\/?[a-z][\s\S]*>/i.test(essayText);
-
-  const processedText = useMemo(() => {
-    // If content is HTML, render it directly. Highlighting in HTML is a future enhancement.
-    if (isHtml) {
-      return <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: essayText }} />;
-    }
-
-    // Fallback for plain text content processing and vocabulary highlighting.
-    if (vocabulary.length === 0) {
-      return essayText.split('\n').map((paragraph, index) => (
-        <p key={index} className="mb-4 font-serif text-lg leading-relaxed text-gray-300">{paragraph}</p>
-      ));
-    }
+  const processedContent = useMemo(() => {
+    if (!essayText) return null;
 
     const vocabMap = new Map<string, VocabularyWord>(vocabulary.map(v => [v.word.toLowerCase(), v]));
+    if (vocabMap.size === 0) {
+      return parse(essayText);
+    }
+
     const wordsToHighlight = new Set(vocabulary.map(v => v.word));
     const regex = new RegExp(`\\b(${Array.from(wordsToHighlight).join('|')})\\b`, 'gi');
-    const paragraphs = essayText.split('\n');
-    return paragraphs.map((paragraph, pIndex) => {
-      if (!paragraph.trim()) return null;
-      const parts = paragraph.split(regex);
-      return (
-        <p key={pIndex} className="mb-4 font-serif text-lg leading-relaxed text-gray-300">
-          {parts.map((part, index) => {
-            const lowerPart = part.toLowerCase();
-            if (vocabMap.has(lowerPart)) {
-              const vocabItem = vocabMap.get(lowerPart)!;
-              return (
-                <Tooltip key={index} content={<>
-                  <strong className="font-bold">{vocabItem.word}</strong>
-                  <p className="text-sm mt-1">{vocabItem.definition}</p>
-                  <p className="text-sm italic mt-2 text-gray-400">"{vocabItem.usageExample}"</p>
-                </>}>
-                  <span className="bg-indigo-500/20 text-indigo-300 font-medium rounded-md px-1 cursor-pointer transition-colors hover:bg-indigo-500/30">
-                    {part}
-                  </span>
-                </Tooltip>
-              );
-            }
-            return <React.Fragment key={index}>{part}</React.Fragment>;
-          })}
-        </p>
-      );
-    });
-  }, [essayText, vocabulary, isHtml]);
+
+    const options: HTMLReactParserOptions = {
+      replace: (domNode: DOMNode) => {
+        if (domNode instanceof Text) {
+          const text = domNode.data;
+          if (!text.trim()) {
+            return <>{text}</>;
+          }
+
+          const parts = text.split(regex);
+          if (parts.length <= 1) {
+            return <>{text}</>;
+          }
+
+          return (
+            <>
+              {parts.map((part, index) => {
+                const lowerPart = part.toLowerCase();
+                if (vocabMap.has(lowerPart)) {
+                  const vocabItem = vocabMap.get(lowerPart)!;
+                  return (
+                    <Tooltip key={index} content={<>
+                      <strong className="font-bold">{vocabItem.word}</strong>
+                      <p className="text-sm mt-1">{vocabItem.definition}</p>
+                      <p className="text-sm italic mt-2 text-gray-400">"{vocabItem.usageExample}"</p>
+                    </>}>
+                      <span className="bg-indigo-500/20 text-indigo-300 font-medium rounded-md px-1 cursor-pointer transition-colors hover:bg-indigo-500/30">
+                        {part}
+                      </span>
+                    </Tooltip>
+                  );
+                }
+                return <React.Fragment key={index}>{part}</React.Fragment>;
+              })}
+            </>
+          );
+        }
+        return domToReact([domNode], options);
+      },
+    };
+
+    return parse(essayText, options);
+  }, [essayText, vocabulary]);
 
   if (isLoading) {
     return (
@@ -78,7 +85,7 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
     );
   }
 
-  return <div>{processedText}</div>;
+  return <div className="prose prose-invert max-w-none">{processedContent}</div>;
 };
 
 export default EssayViewer;
