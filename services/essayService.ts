@@ -1,53 +1,55 @@
 import { Essay } from '../types';
 
-// Use Aeon's official, reliable RSS feed.
-const RSS_FEED_URL = 'https://aeon.co/feed.rss';
-const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(RSS_FEED_URL)}&count=50`;
-
-const CACHE_KEY = 'essayListCache';
+// Endpoint for our new, reliable serverless function
+const ESSAY_API_URL = '/api/fetchEssays';
+const CACHE_KEY = 'essays';
 
 /**
- * Fetches the list of essays (title, summary, etc.) from the RSS feed.
- * This does NOT fetch the full content.
+ * Fetches the list of essays (title, summary, etc.) from our new serverless function.
  */
-export async function fetchEssays(forceRefresh = false): Promise<Essay[]> {
+export const fetchEssays = async (forceRefresh = false): Promise<Essay[]> => {
   if (!forceRefresh) {
     const cachedData = sessionStorage.getItem(CACHE_KEY);
     if (cachedData) {
-      return JSON.parse(cachedData);
+      try {
+        const essays = JSON.parse(cachedData);
+        if (Array.isArray(essays) && essays.length > 0) {
+          return essays;
+        }
+      } catch (e) {
+        console.error('Failed to parse cached essays', e);
+        sessionStorage.removeItem(CACHE_KEY); // Clear corrupted cache
+      }
     }
   }
 
-  const res = await fetch(API_URL);
-  if (!res.ok) {
-    throw new Error('Failed to fetch the list of essays from Aeon.');
+  const response = await fetch(ESSAY_API_URL);
+  if (!response.ok) {
+    throw new Error('Failed to fetch essays from our API');
   }
-  const data = await res.json();
+  const data = await response.json();
 
-  if (data.status !== 'ok') {
-    throw new Error('RSS to JSON API returned an error.');
-  }
-
+  // Filter out video content and ensure essential fields are present
   const essays = data.items
-    .filter((item: any) => {
-      const hasVideoCategory = item.categories?.some((cat: string) => cat.toLowerCase().includes('video'));
-      const hasVideoUrl = item.link?.includes('/videos/');
-      return !hasVideoCategory && !hasVideoUrl && item.title && item.content;
-    })
-    .map((item: any, idx: number) => ({
-      id: item.guid || String(idx + 1),
+    .filter((item: any) => 
+      item.title &&
+      item.url &&
+      !item.categories?.includes('Video') && 
+      !item.url.includes('/video/')
+    )
+    .map((item: any) => ({
+      id: item.id,
       title: item.title,
-      author: item.author || 'Aeon',
-      url: item.link,
-      genre: item.categories?.[0] || 'Essay',
-      duration: 5, // Placeholder
-      // Initially, content is the summary from the feed.
-      content: item.content || item.description,
+      url: item.url,
+      author: item.author || 'N/A',
+      content: item.content, // This is the summary from the RSS feed
+      published: item.published,
+      categories: item.categories || [],
     }));
 
   sessionStorage.setItem(CACHE_KEY, JSON.stringify(essays));
   return essays;
-}
+};
 
 /**
  * Fetches the full HTML content of a single essay using our serverless function.
@@ -58,7 +60,7 @@ export async function fetchFullEssayContent(url: string): Promise<string> {
   const response = await fetch(`/api/fetchFullEssay?url=${encodeURIComponent(url)}`);
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => null); // Gracefully handle non-json responses
+    const errorData = await response.json().catch(() => null);
     throw new Error(errorData?.error || 'Failed to fetch full essay content.');
   }
 
