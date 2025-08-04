@@ -13,16 +13,19 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
   const isHtml = /<\/?[a-z][\s\S]*>/i.test(essayText);
 
   const processedText = useMemo(() => {
-    if (isHtml && vocabulary.length === 0) {
-      // Render HTML directly
+    // If content is HTML, render it directly. Highlighting in HTML is a future enhancement.
+    if (isHtml) {
       return <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: essayText }} />;
     }
+
+    // Fallback for plain text content processing and vocabulary highlighting.
     if (vocabulary.length === 0) {
       return essayText.split('\n').map((paragraph, index) => (
         <p key={index} className="mb-4 font-serif text-lg leading-relaxed text-gray-300">{paragraph}</p>
       ));
     }
-    const vocabMap = new Map(vocabulary.map(v => [v.word.toLowerCase(), v]));
+
+    const vocabMap = new Map<string, VocabularyWord>(vocabulary.map(v => [v.word.toLowerCase(), v]));
     const wordsToHighlight = new Set(vocabulary.map(v => v.word));
     const regex = new RegExp(`\\b(${Array.from(wordsToHighlight).join('|')})\\b`, 'gi');
     const paragraphs = essayText.split('\n');
