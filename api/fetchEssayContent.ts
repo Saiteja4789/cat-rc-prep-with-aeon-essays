@@ -1,18 +1,36 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch';
+import puppeteer from 'puppeteer-core';
+import chrome from 'chrome-aws-lambda';
 import cheerio from 'cheerio';
 
-// Use Cheerio to robustly extract the main Aeon essay content
+// Extracts the full HTML of a page using a headless browser to defeat lazy loading
+async function getFullPageHtml(url: string): Promise<string> {
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      args: chrome.args,
+      executablePath: await chrome.executablePath,
+      headless: chrome.headless,
+    });
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'networkidle2' });
+    const content = await page.content();
+    return content;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+// Extracts the main article content from the fully rendered HTML
 function extractMainContent(html: string): string | null {
   const $ = cheerio.load(html);
   const article = $('article');
   if (!article.length) return null;
-  // Remove unwanted tags from within the article
-  article.find('script, style, noscript, iframe, link, aside').remove();
-  // Remove comments
-  article.contents().each(function () {
-    if (this.type === 'comment') $(this).remove();
-  });
+  // Clean up the article content
+  article.find('script, style, noscript, iframe, link, aside, footer, header').remove();
+  article.find('[class*="ad"], [id*="ad"]').remove(); // Remove ad containers
   return article.html();
 }
 
@@ -21,19 +39,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!url || !/^https:\/\/aeon.co\//.test(url)) {
     return res.status(400).json({ error: 'Invalid or missing Aeon URL' });
   }
+
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(500).json({ error: 'Failed to fetch essay from Aeon' });
-    }
-    const html = await response.text();
+    const html = await getFullPageHtml(url);
     const mainContent = extractMainContent(html);
+
     if (!mainContent) {
-      return res.status(404).json({ error: 'Could not extract essay content' });
+      return res.status(404).json({ error: 'Could not extract essay content after rendering.' });
     }
+
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
     return res.status(200).json({ content: mainContent });
   } catch (err) {
-    return res.status(500).json({ error: 'Server error fetching essay' });
+    console.error(err);
+    return res.status(500).json({ error: 'Server error during headless browser scraping.' });
   }
 }
