@@ -3,7 +3,27 @@ import puppeteer from 'puppeteer-core';
 import chrome from 'chrome-aws-lambda';
 import cheerio from 'cheerio';
 
-// Extracts the full HTML of a page using a headless browser to defeat lazy loading
+// Scrolls a page to the bottom to trigger all lazy-loaded content
+async function autoScroll(page) {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+
+        if (totalHeight >= scrollHeight) {
+          clearInterval(timer);
+          resolve(true);
+        }
+      }, 100);
+    });
+  });
+}
+
+// Extracts the full HTML of a page using a headless browser with auto-scrolling
 async function getFullPageHtml(url: string): Promise<string> {
   let browser = null;
   try {
@@ -14,6 +34,7 @@ async function getFullPageHtml(url: string): Promise<string> {
     });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2' });
+    await autoScroll(page);
     const content = await page.content();
     return content;
   } finally {
