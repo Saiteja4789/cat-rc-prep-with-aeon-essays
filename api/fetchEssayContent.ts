@@ -35,12 +35,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
     
-    const response = await fetch(`${MERCURY_PARSER_API}${encodeURIComponent(url)}`, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Aeon-Reader-App/1.0' }
-    });
+    const mercuryUrl = `${MERCURY_PARSER_API}${encodeURIComponent(url)}`;
+    console.log('Mercury Parser API URL:', mercuryUrl);
     
-    clearTimeout(timeoutId);
+    let response;
+    try {
+      response = await fetch(mercuryUrl, {
+        signal: controller.signal,
+        headers: { 
+          'User-Agent': 'Aeon-Reader-App/1.0',
+          'Accept': 'application/json'
+        }
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      console.error('Fetch error details:', {
+        name: fetchError.name,
+        message: fetchError.message,
+        stack: fetchError.stack,
+        code: fetchError.code,
+        type: fetchError.type
+      });
+      throw new Error(`Failed to fetch from Mercury Parser: ${fetchError.message}`);
+    }
     
     if (!response.ok) {
       const errorText = await response.text();
