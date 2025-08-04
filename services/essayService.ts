@@ -8,15 +8,21 @@ export async function fetchEssays(): Promise<Essay[]> {
   if (!res.ok) throw new Error('Failed to fetch essays');
   const data = await res.json();
   // data.items is an array of articles
-  return data.items.map((item: any, idx: number) => ({
-    id: item.guid || String(idx + 1),
-    title: item.title,
-    author: item.author || 'Aeon',
-    url: item.link,
-    genre: item.categories && item.categories.length > 0 ? item.categories[0] : 'Essay',
-    duration: 5, // RSS does not provide reading time; set a default or estimate from content length
-    content: item.description.replace(/<[^>]+>/g, ''), // strip HTML tags
-  }));
+  return data.items
+    .filter((item: any) => {
+      const isVideo = (item.categories && item.categories.some((c: string) => c.toLowerCase().includes('video')))
+        || (item.link && item.link.includes('/videos/'));
+      return !isVideo;
+    })
+    .map((item: any, idx: number) => ({
+      id: item.guid || String(idx + 1),
+      title: item.title,
+      author: item.author || 'Aeon',
+      url: item.link,
+      genre: item.categories && item.categories.length > 0 ? item.categories[0] : 'Essay',
+      duration: 5, // RSS does not provide reading time; set a default or estimate from content length
+      content: item.description.replace(/<[^>]+>/g, ''), // strip HTML tags
+    }));
 }
 
 export async function fetchEssayById(id: string): Promise<Essay | null> {
