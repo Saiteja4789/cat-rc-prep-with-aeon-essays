@@ -2,14 +2,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { VocabularyWord, Question } from '../types';
 
-if (!process.env.API_KEY) {
-  // This is a placeholder check. In a real environment, the key would be set.
-  // We can throw an error or handle it gracefully. For this app, we'll log a warning
-  // because the user can't provide one. The app will show an error if API calls fail.
-  console.warn("API_KEY environment variable not set. Gemini API calls will fail.");
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  throw new Error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY in your environment variables.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 const model = 'gemini-2.5-flash';
 
 const vocabularySchema = {
