@@ -42,8 +42,10 @@ export async function fetchEssays(forceRefresh = false): Promise<Essay[]> {
 
   const essays = data.items
     .filter((item: any) => {
-      const isVideo = item.categories?.some((cat: string) => cat.toLowerCase().includes('video'));
-      return !isVideo && item.title && item.content;
+      // More robust video filtering
+      const hasVideoCategory = item.categories?.some((cat: string) => cat.toLowerCase().includes('video'));
+      const hasVideoUrl = item.link?.includes('/videos/');
+      return !hasVideoCategory && !hasVideoUrl && item.title && item.content;
     })
     .map((item: any, idx: number) => ({
       id: item.guid || String(idx + 1),
