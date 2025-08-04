@@ -10,6 +10,10 @@ import { HelpCircleIcon } from './components/icons/HelpCircleIcon';
 import LandingPage from './components/LandingPage';
 
 const App: React.FC = () => {
+  // Debug: Print Gemini API key to console
+  // (It should be undefined or a string; never expose secrets in production, but this is for debugging only)
+  // eslint-disable-next-line no-console
+  console.log('VITE_GEMINI_API_KEY:', import.meta.env.VITE_GEMINI_API_KEY);
   const [essays, setEssays] = useState<Essay[]>([]);
   const [currentEssay, setCurrentEssay] = useState<Essay | null>(null);
   const [vocabulary, setVocabulary] = useState<VocabularyWord[]>([]);
