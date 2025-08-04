@@ -1,54 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Essay, VocabularyWord, Question, User } from './types';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Essay, VocabularyWord, Question } from './types';
 import { getEssays, getEssayById } from './services/essayService';
 import { analyzeVocabulary, generateQuestions } from './services/geminiService';
-import * as userService from './services/userService';
 import Sidebar from './components/Sidebar';
 import EssayViewer from './components/EssayViewer';
 import Questionnaire from './components/Questionnaire';
 import Loader from './components/Loader';
 import { HelpCircleIcon } from './components/icons/HelpCircleIcon';
 import LandingPage from './components/LandingPage';
-import LoginPage from './components/LoginPage';
-import SignupPage from './components/SignupPage';
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [authView, setAuthView] = useState<'login' | 'signup'>('login');
-  
   const [essays, setEssays] = useState<Essay[]>([]);
   const [currentEssay, setCurrentEssay] = useState<Essay | null>(null);
   const [vocabulary, setVocabulary] = useState<VocabularyWord[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  
   const [isLoadingEssay, setIsLoadingEssay] = useState(false);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check for persisted user session on initial load
   useEffect(() => {
-    const checkSession = () => {
-      const loggedInUser = userService.getCurrentUser();
-      if (loggedInUser) {
-        setUser(loggedInUser);
-      }
-    };
-    checkSession();
-  }, []);
-  
-  // Fetch essays when user is logged in and is on the landing page
-  useEffect(() => {
-    if (user && !currentEssay) {
+    if (!essays.length) {
       setEssays(getEssays());
     }
-  }, [user, currentEssay]);
+  }, [essays.length]);
 
   const handleSelectEssay = useCallback(async (id: string) => {
     setIsLoadingEssay(true);
     setError(null);
     setVocabulary([]);
     setQuestions([]);
-    
+
     const selectedEssay = getEssayById(id);
     setCurrentEssay(selectedEssay);
 
@@ -70,7 +51,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleGenerateQuestions = useCallback(async () => {
-    if (!currentEssay || !user) return;
+    if (!currentEssay) return;
 
     setIsLoadingQuestions(true);
     setError(null);
@@ -79,18 +60,14 @@ const App: React.FC = () => {
     try {
       const questionData = await generateQuestions(currentEssay.content);
       setQuestions(questionData);
-      const updatedUser = userService.markEssayAsRead(user.email, currentEssay.id);
-      if (updatedUser) {
-          setUser(updatedUser);
-      }
     } catch (err) {
       console.error(err);
       setError('Failed to generate questions. Please check your API key and try again.');
     } finally {
       setIsLoadingQuestions(false);
     }
-  }, [currentEssay, user]);
-  
+  }, [currentEssay]);
+
   const handleGoHome = () => {
     setCurrentEssay(null);
     setVocabulary([]);
@@ -98,46 +75,8 @@ const App: React.FC = () => {
     setError(null);
   };
 
-  const handleLogin = (email: string, password: string): Promise<User> => {
-    return new Promise((resolve, reject) => {
-      const authenticatedUser = userService.authenticateUser(email, password);
-      if (authenticatedUser) {
-        const updatedUser = userService.updateUserOnLogin(authenticatedUser.email);
-        setUser(updatedUser);
-        resolve(updatedUser);
-      } else {
-        reject(new Error("Invalid email or password."));
-      }
-    });
-  };
-
-  const handleSignup = (name: string, email: string, password: string): Promise<User> => {
-     return new Promise((resolve, reject) => {
-      try {
-        const newUser = userService.createUser(name, email, password);
-        setUser(newUser);
-        resolve(newUser);
-      } catch (error) {
-        reject(error);
-      }
-    });
-  };
-
-  const handleLogout = () => {
-    userService.logoutUser();
-    setUser(null);
-    setCurrentEssay(null);
-  };
-
-  if (!user) {
-    if (authView === 'login') {
-      return <LoginPage onLogin={handleLogin} onSwitchToSignup={() => setAuthView('signup')} />;
-    }
-    return <SignupPage onSignup={handleSignup} onSwitchToLogin={() => setAuthView('login')} />;
-  }
-
   if (!currentEssay) {
-    return <LandingPage essays={essays} onSelectEssay={handleSelectEssay} user={user} />;
+    return <LandingPage essays={essays} onSelectEssay={handleSelectEssay} />;
   }
 
   return (
@@ -147,7 +86,6 @@ const App: React.FC = () => {
         onSelectEssay={handleSelectEssay} 
         currentEssayId={currentEssay?.id}
         onGoHome={handleGoHome}
-        onLogout={handleLogout}
       />
       
       <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
