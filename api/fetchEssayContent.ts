@@ -1,9 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// This is a public Mercury Web Parser endpoint.
-// It takes a URL and returns clean, readable article content.
-const MERCURY_PARSER_API = `https://mercury-parser-production.fly.dev/parser?url=`;
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = req.query.url as string;
   if (!url || !/^https:\/\/aeon.co\//.test(url)) {
@@ -11,28 +7,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Call the Mercury API to get the parsed article
-    const response = await fetch(`${MERCURY_PARSER_API}${encodeURIComponent(url)}`);
+    // Debug: Return hardcoded HTML to test frontend rendering
+    const testHtml = `
+      <h1>Test Essay</h1>
+      <p>This is a test essay to verify the frontend rendering works.</p>
+      <p>If you see this, the issue is with the Mercury Parser or the API call to it.</p>
+    `;
     
-    if (!response.ok) {
-      // Forward the error from the parser service
-      const errorBody = await response.text();
-      console.error('Mercury Parser failed:', errorBody);
-      return res.status(response.status).json({ error: `Mercury Parser failed: ${errorBody}` });
-    }
-
-    const data = await response.json();
-
-    // The parsed content is in the 'content' field (as HTML)
-    if (data && data.content && data.content.trim()) {
-      console.log('Mercury content (first 200 chars):', data.content.slice(0, 200));
-      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
-      return res.status(200).json({ content: data.content });
-    } else {
-      console.error('Mercury Parser returned empty or invalid content:', data);
-      return res.status(404).json({ error: 'Could not extract essay content using Mercury Parser.' });
-    }
-
+    console.log('Returning test HTML content');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+    return res.status(200).json({ content: testHtml });
+    
   } catch (err) {
     console.error('Server error in fetchEssayContent:', err);
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
