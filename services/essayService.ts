@@ -5,7 +5,7 @@ const ESSAY_API_URL = '/api/fetchEssays';
 const CACHE_KEY = 'essays';
 
 /**
- * Fetches the list of essays (title, summary, etc.) from our new serverless function.
+ * Fetches the list of essays from our new serverless function.
  */
 export const fetchEssays = async (forceRefresh = false): Promise<Essay[]> => {
   if (!forceRefresh) {
@@ -17,8 +17,8 @@ export const fetchEssays = async (forceRefresh = false): Promise<Essay[]> => {
           return essays;
         }
       } catch (e) {
-        console.error('Failed to parse cached essays', e);
-        sessionStorage.removeItem(CACHE_KEY); // Clear corrupted cache
+        console.error('Failed to parse cached essays:', e);
+        sessionStorage.removeItem(CACHE_KEY);
       }
     }
   }
@@ -27,16 +27,23 @@ export const fetchEssays = async (forceRefresh = false): Promise<Essay[]> => {
   if (!response.ok) {
     throw new Error('Failed to fetch essays from our API');
   }
+
   const data = await response.json();
 
-  // Filter out video content and ensure essential fields are present
+  // **CRITICAL FIX:** Ensure data.items is an array before proceeding.
+  if (!Array.isArray(data?.items)) {
+    console.error('API response did not contain an array of items:', data);
+    return []; // Return an empty array to prevent the app from crashing.
+  }
+
+  // **CRITICAL FIX:** Correctly filter out video content and map the data.
   const essays = data.items
-    .filter((item: any) => 
-      item.title &&
-      item.url &&
-      !item.categories?.includes('Video') && 
-      !item.url.includes('/video/')
-    )
+    .filter((item: any) => {
+      // The 'categories' field is a clean array of strings, but we should check case-insensitively.
+      const hasVideoCategory = item.categories?.some((cat: string) => cat.toLowerCase().trim() === 'video');
+      const hasVideoUrl = item.url?.includes('/video');
+      return item.title && item.url && !hasVideoCategory && !hasVideoUrl;
+    })
     .map((item: any) => ({
       id: item.id,
       title: item.title,
@@ -53,8 +60,6 @@ export const fetchEssays = async (forceRefresh = false): Promise<Essay[]> => {
 
 /**
  * Fetches the full HTML content of a single essay using our serverless function.
- * @param url The URL of the essay to fetch.
- * @returns The full HTML content of the essay.
  */
 export async function fetchFullEssayContent(url: string): Promise<string> {
   const response = await fetch(`/api/fetchFullEssay?url=${encodeURIComponent(url)}`);
