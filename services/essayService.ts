@@ -22,7 +22,8 @@ export async function fetchEssays(): Promise<Essay[]> {
       url: item.link,
       genre: item.categories && item.categories.length > 0 ? item.categories[0] : 'Essay',
       duration: 5, // RSS does not provide reading time; set a default or estimate from content length
-      content: item.description.replace(/<[^>]+>/g, ''), // strip HTML tags
+      // Use item.content, which contains the full HTML from the full-text RSS feed.
+      content: item.content || item.description, 
     }));
 }
 
