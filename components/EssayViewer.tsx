@@ -10,8 +10,19 @@ interface EssayViewerProps {
 }
 
 const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoading }) => {
+  // Debug: Log incoming essayText
+  React.useEffect(() => {
+    if (essayText === undefined) {
+      console.warn('EssayViewer: essayText is undefined');
+    } else if (!essayText || !essayText.trim()) {
+      console.warn('EssayViewer: essayText is empty');
+    } else {
+      console.log('EssayViewer: received essayText (first 200 chars):', essayText.slice(0, 200));
+    }
+  }, [essayText]);
+
   const processedContent = useMemo(() => {
-    if (!essayText) return null;
+    if (!essayText || !essayText.trim()) return null;
 
     // If there's no vocabulary to highlight, just parse the HTML directly for performance.
     if (vocabulary.length === 0) {
@@ -77,6 +88,15 @@ const EssayViewer: React.FC<EssayViewerProps> = ({ essayText, vocabulary, isLoad
           <div className="h-4 bg-gray-700 rounded"></div>
           <div className="h-4 bg-gray-700 rounded w-5/6"></div>
         </div>
+      </div>
+    );
+  }
+
+  // Fallback: If essayText is missing or empty, show a clear message.
+  if (!essayText || !essayText.trim()) {
+    return (
+      <div className="text-center text-gray-400 py-10">
+        <p>No essay content available. Please try refreshing or select another essay.</p>
       </div>
     );
   }
