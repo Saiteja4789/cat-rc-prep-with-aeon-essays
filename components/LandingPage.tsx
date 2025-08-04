@@ -7,7 +7,7 @@ import { ClockIcon } from './icons/ClockIcon';
 
 interface LandingPageProps {
   essays: Essay[];
-  user: User;
+  user?: User;
   onSelectEssay: (id: string) => void;
 }
 
@@ -32,20 +32,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ essays, user, onSelectEssay }
             <BookOpenIcon className="w-8 h-8 text-indigo-500 mr-4" />
             <h1 className="text-2xl font-bold text-white">Select an Essay</h1>
           </div>
-          <div className="text-right">
-             <p className="text-md text-white">Welcome, {user.name}!</p>
-          </div>
+
         </div>
       </header>
       <main>
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
           
-          <div className="mb-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              <StatCard icon={<CheckCircleIcon className="w-6 h-6"/>} label="Essays Read" value={user.essaysRead} />
-              <StatCard icon={<TrendingUpIcon className="w-6 h-6"/>} label="Day Streak" value={user.dayStreak} />
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {essays.map(essay => (
