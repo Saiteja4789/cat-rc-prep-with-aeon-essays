@@ -24,7 +24,13 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    handleRefreshEssays();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleRefreshEssays = useCallback(() => {
     setLoadingEssays(true);
+    setError(null);
     fetchEssays()
       .then(setEssays)
       .catch(() => setError('Failed to load essays from Aeon.'))
@@ -80,14 +86,15 @@ const App: React.FC = () => {
     setError(null);
   };
 
-  if (loadingEssays) {
-    return <div className="flex items-center justify-center min-h-screen text-xl text-gray-300">Loading latest essays from Aeon...</div>;
-  }
-  if (error) {
-    return <div className="flex items-center justify-center min-h-screen text-xl text-red-400">{error}</div>;
-  }
   if (!currentEssay) {
-    return <LandingPage essays={essays} onSelectEssay={handleSelectEssay} />;
+    return (
+      <LandingPage
+        essays={essays}
+        onSelectEssay={handleSelectEssay}
+        onRefreshEssays={handleRefreshEssays}
+        loadingEssays={loadingEssays}
+      />
+    );
   }
 
   return (
