@@ -1,59 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import puppeteer from 'puppeteer-core';
-import chrome from 'chrome-aws-lambda';
-import cheerio from 'cheerio';
 
-// Scrolls a page to the bottom to trigger all lazy-loaded content
-async function autoScroll(page) {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      let totalHeight = 0;
-      const distance = 100;
-      const timer = setInterval(() => {
-        const scrollHeight = document.body.scrollHeight;
-        window.scrollBy(0, distance);
-        totalHeight += distance;
-
-        if (totalHeight >= scrollHeight) {
-          clearInterval(timer);
-          resolve(true);
-        }
-      }, 100);
-    });
-  });
-}
-
-// Extracts the full HTML of a page using a headless browser with auto-scrolling
-async function getFullPageHtml(url: string): Promise<string> {
-  let browser = null;
-  try {
-    browser = await puppeteer.launch({
-      args: chrome.args,
-      executablePath: await chrome.executablePath,
-      headless: chrome.headless,
-    });
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle2' });
-    await autoScroll(page);
-    const content = await page.content();
-    return content;
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
-  }
-}
-
-// Extracts the main article content from the fully rendered HTML
-function extractMainContent(html: string): string | null {
-  const $ = cheerio.load(html);
-  const article = $('article');
-  if (!article.length) return null;
-  // Clean up the article content
-  article.find('script, style, noscript, iframe, link, aside, footer, header').remove();
-  article.find('[class*="ad"], [id*="ad"]').remove(); // Remove ad containers
-  return article.html();
-}
+// This is a public Mercury Web Parser endpoint.
+// It takes a URL and returns clean, readable article content.
+const MERCURY_PARSER_API = `https://mercury-parser-production.fly.dev/parser?url=`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = req.query.url as string;
@@ -62,17 +11,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const html = await getFullPageHtml(url);
-    const mainContent = extractMainContent(html);
-
-    if (!mainContent) {
-      return res.status(404).json({ error: 'Could not extract essay content after rendering.' });
+    // Call the Mercury API to get the parsed article
+    const response = await fetch(`${MERCURY_PARSER_API}${encodeURIComponent(url)}`);
+    
+    if (!response.ok) {
+      // Forward the error from the parser service
+      const errorBody = await response.text();
+      return res.status(response.status).json({ error: `Mercury Parser failed: ${errorBody}` });
     }
 
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
-    return res.status(200).json({ content: mainContent });
+    const data = await response.json();
+
+    // The parsed content is in the 'content' field (as HTML)
+    if (data && data.content) {
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+      return res.status(200).json({ content: data.content });
+    } else {
+      return res.status(404).json({ error: 'Could not extract essay content using Mercury Parser.' });
+    }
+
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Server error during headless browser scraping.' });
+    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+    return res.status(500).json({ error: `Server error: ${errorMessage}` });
   }
 }
