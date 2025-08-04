@@ -110,22 +110,29 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
       <Sidebar
-        essayTitle={currentEssay.title}
-        vocabulary={vocabulary}
-        onGenerateQuestions={handleGenerateQuestions}
-        onBack={handleBackToList}
-        isLoading={isLoadingAnalysis}
+        essays={essays}
+        currentEssayId={currentEssay.id}
+        onSelectEssay={handleSelectEssay}
+        onGoHome={handleBackToList}
+        onLogout={handleBackToList} // Assuming logout and go home are the same for now
       />
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto p-8 lg:p-12">
+          <button onClick={handleBackToList} className="text-indigo-400 hover:text-indigo-300 mb-4">
+            &larr; Back to list
+          </button>
           <h1 className="text-4xl font-bold text-white mb-2 font-serif">{currentEssay.title}</h1>
           <p className="text-lg text-gray-400 mb-8">by {currentEssay.author}</p>
-          <EssayViewer
-            essayText={currentEssay.content}
-            vocabulary={vocabulary}
-            isLoading={isLoadingAnalysis}
-          />
+          {/* CRITICAL FIX: Ensure vocabulary is an array before rendering */}
+          {Array.isArray(vocabulary) && (
+            <EssayViewer
+              essayText={currentEssay.content}
+              vocabulary={vocabulary}
+              isLoading={isLoadingAnalysis}
+            />
+          )}
         </div>
+        {/* The Questionnaire and future analysis tools would go here */}
         {questions.length > 0 && (
           <div className="w-full lg:w-1/3 xl:w-1/4 p-6 bg-gray-800 border-l border-gray-700 overflow-y-auto">
             <Questionnaire questions={questions} />
