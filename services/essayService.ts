@@ -26,16 +26,24 @@ function cleanMorssHtml(html: string): string {
 const FULL_TEXT_RSS_URL = 'https://morss.it/https://aeon.co/feed.rss';
 const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FULL_TEXT_RSS_URL)}`;
 
-export async function fetchEssays(): Promise<Essay[]> {
+const CACHE_KEY = 'essaysCache';
+
+export async function fetchEssays(forceRefresh = false): Promise<Essay[]> {
+  if (!forceRefresh) {
+    const cachedData = sessionStorage.getItem(CACHE_KEY);
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
+  }
+
   const res = await fetch(API_URL);
   if (!res.ok) throw new Error('Failed to fetch essays');
   const data = await res.json();
-  // data.items is an array of articles
-  return data.items
+
+  const essays = data.items
     .filter((item: any) => {
-      const isVideo = (item.categories && item.categories.some((c: string) => c.toLowerCase().includes('video')))
-        || (item.link && item.link.includes('/videos/'));
-      return !isVideo;
+      const isVideo = item.categories?.some((cat: string) => cat.toLowerCase().includes('video'));
+      return !isVideo && item.title && item.content;
     })
     .map((item: any, idx: number) => ({
       id: item.guid || String(idx + 1),
@@ -43,10 +51,12 @@ export async function fetchEssays(): Promise<Essay[]> {
       author: item.author || 'Aeon',
       url: item.link,
       genre: item.categories && item.categories.length > 0 ? item.categories[0] : 'Essay',
-      duration: 5, // RSS does not provide reading time; set a default or estimate from content length
-      // Use item.content and clean it to remove the RSS service's wrapper HTML.
-      content: cleanMorssHtml(item.content || item.description), 
+      duration: 5,
+      content: cleanMorssHtml(item.content || item.description),
     }));
+
+  sessionStorage.setItem(CACHE_KEY, JSON.stringify(essays));
+  return essays;
 }
 
 export async function fetchEssayById(id: string): Promise<Essay | null> {
