@@ -9,7 +9,7 @@ interface LandingPageProps {
   essays: Essay[];
   user?: User;
   onSelectEssay: (id: string) => void;
-  onRefreshEssays: () => void;
+  onRefreshEssays: (force: boolean) => void;
   loadingEssays: boolean;
 }
 
@@ -35,7 +35,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ essays, user, onSelectEssay, 
             <h1 className="text-2xl font-bold text-white">Select an Essay</h1>
           </div>
           <button
-            onClick={onRefreshEssays}
+            onClick={() => onRefreshEssays(true)}
             disabled={loadingEssays}
             className={`ml-4 flex items-center px-4 py-2 rounded bg-indigo-600 text-white font-semibold shadow hover:bg-indigo-700 transition disabled:opacity-60 disabled:cursor-not-allowed`}
             aria-label="Refresh Essays"
