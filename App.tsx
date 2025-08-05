@@ -53,7 +53,9 @@ const App: React.FC = () => {
         })
         .catch(err => {
           console.error('Failed to fetch or analyze essay:', err);
-          setError('Could not load or analyze the full essay. Please try again.');
+          // Fallback: Use summary content if available
+          setCurrentEssay({ ...essay, content: essay.content || "Content unavailable." });
+          setError('Could not load the full essay content. Showing summary instead.');
         })
         .finally(() => {
           setIsLoadingAnalysis(false);
